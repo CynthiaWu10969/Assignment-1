@@ -12,7 +12,7 @@ void initRandom(float *values, int N) {
 void initGood(float *values, int N) {
     for (int i = 0; i < N; i++) {
         // TODO: Choose data values that will yield high speedup
-        values[i] = 1.f;
+        values[i] = 1.99f + 0.00001f * static_cast<float>(rand()) / RAND_MAX;
     }
 }
 
@@ -20,6 +20,18 @@ void initGood(float *values, int N) {
 void initBad(float *values, int N) {
     for (int i = 0; i < N; i++) {
         // TODO: Choose data values that will yield low speedup
-        values[i] = 1.f;
+
+        // int span = N / 64;
+
+        // if (span == 1) {
+        //     values[i] = 1.f;
+        // } else{
+        if (i % 8 == 0){
+            values[i] = 1.999999f + 0.000001f * static_cast<float>(rand()) / RAND_MAX;
+        } else{
+            values[i] = 1.f;
+            // + 0.00001f * static_cast<float>(rand()) / RAND_MAX;
+        }
+        //}
     }
 }

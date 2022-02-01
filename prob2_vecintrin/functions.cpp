@@ -66,7 +66,7 @@ void clampedExpSerial(float *values, int *exponents, float *output, int N) {
         int y = exponents[i];
         float xpower = x;
         while (y > 0) {
-            if (y & 0x1) {
+            if (y & 0x1) { 
                 result *= xpower;
                 if (result > 4.18f) {
                     result = 4.18f;
@@ -83,6 +83,69 @@ void clampedExpSerial(float *values, int *exponents, float *output, int N) {
 void clampedExpVector(float *values, int *exponents, float *output, int N) {
     // TODO: Implement your vectorized version of clampedExpSerial here
     //  ...
+
+    __cmu418_vec_float x;
+    __cmu418_vec_float result;
+    __cmu418_vec_int y;
+    __cmu418_vec_float xpower;
+    __cmu418_mask maskAll, maskYPositive, maskYOne, maskClamp;
+    __cmu418_vec_float zeroF = _cmu418_vset_float(0.f);
+    __cmu418_vec_int zeroI = _cmu418_vset_int(0);
+    __cmu418_vec_int oneI = _cmu418_vset_int(1);
+    __cmu418_vec_float clamps = _cmu418_vset_float(4.18f);
+    __cmu418_vec_int tempV;
+
+    for (int i = 0; i < N; i += VECTOR_WIDTH){
+
+        maskAll = _cmu418_init_ones();
+        maskYPositive = _cmu418_init_ones();
+        maskYOne = _cmu418_init_ones();
+        maskClamp = _cmu418_init_ones();
+
+        // load from memory to vector
+        _cmu418_vload_float(x, values + i, maskAll);
+        _cmu418_vload_int(y, exponents + i, maskAll);
+        _cmu418_vload_float(xpower, values + i, maskAll);
+
+        // set the result to a vector of all ones
+        result = _cmu418_vset_float(1.f);
+
+        // check for positive y's
+        _cmu418_vgt_int(maskYPositive, y, zeroI, maskAll);
+
+        while (_cmu418_cntbits(maskYPositive) > 0){
+            // check for y's that &0x1 is true
+            _cmu418_vbitand_int(tempV, y, oneI, maskYPositive);
+
+            _cmu418_vgt_int(maskYOne, tempV, zeroI, maskYPositive);
+
+            // calculation for result for vector lanes that satisfy
+            _cmu418_vmult_float(result, result, xpower, maskYOne);
+            // result *= xpower;
+
+            // set the clamp lanes for later store
+            _cmu418_vgt_float(maskClamp, result, clamps, maskAll);
+
+            // set the results for those clamped
+            _cmu418_vset_float(result, 4.18f, maskClamp);
+            // result = 4.18f for those clamped
+
+            // xpower = xpower * xpower
+            _cmu418_vmult_float(xpower, xpower, xpower, maskYPositive);
+
+            // shift y to the right
+            _cmu418_vshiftright_int(y, y, oneI, maskAll);
+
+            // check for positive y's
+            _cmu418_vgt_int(maskYPositive, y, zeroI, maskAll);
+        }
+
+        // store to mem
+        _cmu418_vstore_float(output + i, result, maskAll);
+
+        addUserLog("vec\n");
+
+    }
 }
 
 float arraySumSerial(float *values, int N) {

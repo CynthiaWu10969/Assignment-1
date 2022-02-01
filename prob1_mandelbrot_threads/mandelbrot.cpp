@@ -111,6 +111,24 @@ void *workerThreadStart(void *threadArgs) {
     WorkerArgs *args = static_cast<WorkerArgs *>(threadArgs);
 
     // TODO: Implement worker thread here.
+
+    // actual calculation
+    float dx = (args->x1 - args->x0) / args->width;
+    float dy = (args->y1 - args->y0) / args->height;
+
+    int startRow = args->threadId;
+
+    for (int j = startRow; j < args->height; j += args->numThreads) {
+        for (int i = 0; i < args->width; ++i) {
+            float x = args->x0 + i * dx;
+            float y = args->y0 + j * dy;
+
+            int index = (j * args->width + i);
+            //printf("index: %d\n", index);
+            args->output[index] = mandel(x, y, args->maxIterations);
+        }
+    }
+
     return NULL;
 }
 
@@ -133,7 +151,20 @@ void mandelbrotThread(int numThreads, float x0, float y0, float x1, float y1,
 
     for (int i = 0; i < numThreads; i++) {
         args[i].threadId = i;
+
         // TODO: Set thread arguments here
+        args[i].height = height;
+        args[i].width = width;
+
+        args[i].maxIterations = maxIterations;
+        args[i].numThreads = numThreads;
+
+        args[i].x0 = x0;
+        args[i].x1 = x1;
+        args[i].y0 = y0;
+        args[i].y1 = y1;
+
+        args[i].output = output;
     }
 
     // Fire up the worker threads.  Note that numThreads-1 pthreads
