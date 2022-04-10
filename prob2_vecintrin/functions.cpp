@@ -94,13 +94,20 @@ void clampedExpVector(float *values, int *exponents, float *output, int N) {
     __cmu418_vec_int oneI = _cmu418_vset_int(1);
     __cmu418_vec_float clamps = _cmu418_vset_float(4.18f);
     __cmu418_vec_int tempV;
+    __cmu418_mask maskStore;
 
     for (int i = 0; i < N; i += VECTOR_WIDTH){
 
-        maskAll = _cmu418_init_ones();
-        maskYPositive = _cmu418_init_ones();
+        if (i + VECTOR_WIDTH >= N){
+            maskStore = _cmu418_init_ones(N - i);
+        } else{
+            maskStore = _cmu418_init_ones();
+        }
+
+        maskAll = _cmu418_init_ones(min(VECTOR_WIDTH, N - i));
+        maskYPositive = _cmu418_init_ones(0);
         maskYOne = _cmu418_init_ones();
-        maskClamp = _cmu418_init_ones();
+        maskClamp = _cmu418_init_ones(0);
 
         // load from memory to vector
         _cmu418_vload_float(x, values + i, maskAll);
@@ -113,35 +120,42 @@ void clampedExpVector(float *values, int *exponents, float *output, int N) {
         // check for positive y's
         _cmu418_vgt_int(maskYPositive, y, zeroI, maskAll);
 
+        //maskStore = _cmu418_mask_and(maskYPositive, maskStore);
+
         while (_cmu418_cntbits(maskYPositive) > 0){
             // check for y's that &0x1 is true
             _cmu418_vbitand_int(tempV, y, oneI, maskYPositive);
 
             _cmu418_vgt_int(maskYOne, tempV, zeroI, maskYPositive);
 
+            maskYOne = _cmu418_mask_and(maskYOne, maskYPositive);
+
             // calculation for result for vector lanes that satisfy
             _cmu418_vmult_float(result, result, xpower, maskYOne);
             // result *= xpower;
 
             // set the clamp lanes for later store
-            _cmu418_vgt_float(maskClamp, result, clamps, maskAll);
+            _cmu418_vgt_float(maskClamp, result, clamps, maskYOne);
 
             // set the results for those clamped
             _cmu418_vset_float(result, 4.18f, maskClamp);
             // result = 4.18f for those clamped
 
+            __cmu418_mask maskNotClamped = _cmu418_mask_not(maskClamp);
+            maskYPositive = _cmu418_mask_and(maskNotClamped, maskYPositive);
+
             // xpower = xpower * xpower
             _cmu418_vmult_float(xpower, xpower, xpower, maskYPositive);
 
             // shift y to the right
-            _cmu418_vshiftright_int(y, y, oneI, maskAll);
+            _cmu418_vshiftright_int(y, y, oneI, maskYPositive);
 
             // check for positive y's
-            _cmu418_vgt_int(maskYPositive, y, zeroI, maskAll);
+            _cmu418_vgt_int(maskYPositive, y, zeroI, maskYPositive);
         }
 
         // store to mem
-        _cmu418_vstore_float(output + i, result, maskAll);
+        _cmu418_vstore_float(output + i, result, maskStore);
 
         addUserLog("vec\n");
 
